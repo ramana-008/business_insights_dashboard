@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Business insights dashboard</title>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<script src="https://cdn.tailwindcss.com/3.4.17"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<style>
+:root{--bg:#f3f5fa;--card:#fff;--ink:#0f172a;--mute:#5f6e86;--line:#e1e6f0;--a:#2f5bea;--c1:#2f5bea;--c2:#f2a33a;--c3:#12a594;--c4:#8a5cf6;--c5:#e5548a;--ok:#15803d;--warn:#b45309;color-scheme:light;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#0a1020;--card:#131b2e;--ink:#e7ecf6;--mute:#97a5bf;--line:#243049;--a:#6b8cff;--c1:#5b82ff;--ok:#4ade80;--warn:#fbbf24;color-scheme:dark}}
+:root[data-theme="dark"]{--bg:#0a1020;--card:#131b2e;--ink:#e7ecf6;--mute:#97a5bf;--line:#243049;--a:#6b8cff;--c1:#5b82ff;--ok:#4ade80;--warn:#fbbf24;color-scheme:dark}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+body{background:var(--bg);color:var(--ink);font-family:'Plus Jakarta Sans',system-ui,-apple-system,'Segoe UI',sans-serif}
+.card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px;min-width:0}
+.ttl{font-size:14px;font-weight:700}.sub{font-size:12px;color:var(--mute);margin-bottom:10px}.mute{color:var(--mute)}
+.hero{border-radius:14px;padding:16px 18px;color:#fff;min-width:0}
+.chip{display:inline-block;font-size:11px;font-weight:600;background:rgba(255,255,255,.2);border-radius:999px;padding:2px 8px;margin-top:6px}
+.btn{background:var(--a);color:#fff;border-radius:10px;padding:8px 14px;font-size:13px;font-weight:600;cursor:pointer;white-space:nowrap}
+.btn:focus-visible,select:focus-visible,input:focus-visible{outline:2px solid var(--a);outline-offset:2px}
+.fld{background:var(--bg);border:1px solid var(--line);border-radius:10px;padding:8px 12px;font-size:13px;color:var(--ink);min-width:0;max-width:200px}
+.fld.sm{padding:3px 8px;font-size:12px}
+table{width:100%;font-size:12px;border-collapse:collapse}th{text-align:right;font-weight:600;color:var(--mute);padding:4px 6px}td{text-align:right;padding:5px 6px;border-top:1px solid var(--line)}th:first-child,td:first-child{text-align:left;padding-left:0}
+html{scroll-behavior:smooth}
+.card,.hero,.btn,.fld{transition:transform .25s ease,box-shadow .25s ease,background-color .2s,border-color .2s,filter .2s}
+.card:hover,.hero:hover{transform:translateY(-2px);box-shadow:0 10px 26px rgba(15,23,42,.12)}
+.btn:hover{filter:brightness(1.1);transform:translateY(-1px)}.btn:active{transform:scale(.97)}
+.fld:hover{border-color:var(--a)}
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes spin{to{transform:rotate(360deg)}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+.anim{animation:rise .55s cubic-bezier(.2,.7,.2,1) backwards;animation-delay:calc(var(--i,0)*55ms)}
+.bar{transition:width .9s cubic-bezier(.2,.7,.2,1)}
+.spin{animation:spin .8s linear infinite}
+.dot{display:inline-block;width:8px;height:8px;border-radius:50%;margin-right:6px;animation:pulse 1.8s ease-in-out infinite}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation:none!important;transition:none!important}}
+</style>
+</head>
+<body>
+<div class="max-w-[1400px] mx-auto p-4 md:p-6 space-y-4">
+
+<header class="card flex flex-wrap items-center gap-3">
+  <div class="mr-auto min-w-[220px]">
+    <h1 class="text-xl font-extrabold">Business insights dashboard</h1>
+    <div id="st" class="text-xs mute">Loading sample data…</div>
+    <div id="sync" class="text-[11px] mute mt-0.5"></div>
+  </div>
+  <label class="btn" tabindex="0">Upload CSV or Excel<input id="file" type="file" accept=".csv,.xlsx,.xls" hidden></label>
+  <div class="flex gap-2 min-w-[240px] max-w-sm flex-1">
+    <input id="url" class="fld flex-1 !max-w-none" placeholder="Paste a Google Sheets link" aria-label="Google Sheets link" value="https://docs.google.com/spreadsheets/d/1_K_Hx_blHkQMtUpQGVIJ0vn6wac9ZLaEy3WW6S9dioo/edit?usp=sharing">
+    <button id="conn" class="btn">Connect</button>
+  </div>
+  <button id="rf" class="btn" aria-label="Refresh data now" title="Re-read the connected Google Sheet now"><span id="rfi" style="display:inline-block">↻</span> Refresh</button>
+  <label class="text-xs mute flex items-center gap-1 cursor-pointer"><input id="auto" type="checkbox" checked> Auto-refresh 1 min</label>
+  <select id="mp" class="fld hidden" aria-label="Measure"></select>
+  <select id="fd" class="fld" aria-label="Filter by"></select>
+  <select id="fv" class="fld" aria-label="Filter value"></select>
+  <select id="cur" class="fld" aria-label="Currency"><option value="">No currency</option><option>₹</option><option>$</option><option>€</option><option>£</option></select>
+</header>
+
+<div class="grid xl:grid-cols-4 gap-4 items-start">
+<main class="xl:col-span-3 space-y-4 min-w-0">
+  <section id="hero" class="grid sm:grid-cols-2 lg:grid-cols-4 gap-3"></section>
+  <section id="mini" class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-3"></section>
+  <section class="grid lg:grid-cols-5 gap-4">
+    <div class="card lg:col-span-3"><div class="ttl" id="c1t"></div><div class="sub" id="c1s"></div><div class="h-64"><canvas id="c1"></canvas></div></div>
+    <div class="card lg:col-span-2"><div class="ttl" id="mixt"></div><div class="sub">Detected from this dataset</div><div id="mix" class="space-y-3"></div></div>
+  </section>
+  <section class="grid md:grid-cols-3 gap-4">
+    <div class="card"><div class="flex justify-between gap-2 items-start"><div class="ttl" id="d1t"></div><select id="da" class="fld sm" aria-label="Split by"></select></div><div class="h-60 mt-2"><canvas id="c3"></canvas></div></div>
+    <div class="card"><div class="flex justify-between gap-2 items-start"><div class="ttl" id="d2t"></div><select id="db" class="fld sm" aria-label="Compare by"></select></div><div class="h-60 mt-2"><canvas id="c4"></canvas></div></div>
+    <div class="card overflow-x-auto"><div class="ttl mb-2">Segment table</div><div id="tbl"></div></div>
+  </section>
+</main>
+<aside class="card xl:sticky xl:top-4">
+  <div class="ttl">Growth insights</div><div class="sub">Written from the data currently loaded</div>
+  <ul id="ins" class="space-y-3 text-[13px] leading-relaxed"></ul>
+</aside>
+</div>
+</div>
+
+<script>
+const $=i=>document.getElementById(i),css=v=>getComputedStyle(document.documentElement).getPropertyValue(v).trim();
+const sum=(a,f)=>a.reduce((s,r)=>s+f(r),0),uniq=a=>[...new Set(a)];
+const grp=(a,k)=>{const m=new Map(),f=typeof k==='function'?k:r=>r[k];a.forEach(r=>{const x=f(r);(m.get(x)||m.set(x,[]).get(x)).push(r)});return m};
+const iso=d=>{d=new Date(+d+432e5);return d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0')};
+const toNum=x=>typeof x==='number'?x:parseFloat(String(x).replace(/[^0-9.\-eE]/g,'')),isD=x=>Object.prototype.toString.call(x)==='[object Date]';
+const pc=(n,d=1)=>n==null||!isFinite(n)?'—':(n*100).toFixed(d)+'%';
+const up=(g,t)=>g==null?'':`${g>=0?'▲':'▼'} ${(Math.abs(g)*100).toFixed(1)}% ${t}`;
+const lab=k=>/^\d{4}-\d\d$/.test(k)?new Date(+k.slice(0,4),+k.slice(5)-1,1).toLocaleDateString('en',{month:'short',year:'2-digit'}):k;
+let CUR='',U={pre:'',suf:''},DS=null,charts={},S={},FRESH=0,KEEPV='All',LIVE={id:null,gid:0,left:60,busy:false,at:null,err:'',sig:null};
+const fmt=n=>{if(n==null||!isFinite(n))return '—';const a=Math.abs(n),c=a>=1e9?[n/1e9,'B']:a>=1e6?[n/1e6,'M']:a>=1e4?[n/1e3,'K']:[n,''];return U.pre+(c[1]?c[0].toFixed(1)+c[1]:a<10&&n%1?n.toFixed(2):Math.round(n).toLocaleString())+U.suf};
+function st(msg,err){$('st').textContent=msg;$('st').style.color=err?'var(--warn)':'var(--mute)'}
+
+/* ---------- ingestion: profile columns, join lookup sheets, detect dataset type ---------- */
+function ingest(sheets,name,keep){
+  const fact=[...sheets].sort((a,b)=>b.rows.length-a.rows.length)[0];
+  if(!fact||!fact.rows.length)return st('No rows found in that file.',1);
+  let rows=fact.rows;const joined=[];
+  sheets.filter(s=>s!==fact&&s.rows.length&&!/guide|readme|note|dictionary/i.test(s.n)).forEach(s=>{
+    const k=Object.keys(s.rows[0])[0],add=Object.keys(s.rows[0]).filter(c=>!(c in rows[0]));
+    if(!(k in rows[0])||!add.length)return;
+    const m=new Map(s.rows.map(r=>[String(r[k]),r]));joined.push(s.n);
+    rows=rows.map(r=>{const l=m.get(String(r[k]))||{},o={...r};add.forEach(c=>o[c]=l[c]??'');return o});
+  });
+  const cols=Object.keys(rows[0]),P={};
+  cols.forEach(c=>{
+    const v=rows.map(r=>r[c]).filter(x=>x!==''&&x!=null),n=v.length||1,u=uniq(v).length,
+      d=v.filter(x=>isD(x)||(/^\d{4}-\d\d(-\d\d)?/.test(String(x))&&isNaN(+x))).length,
+      m=v.filter(x=>typeof x==='number'||(String(x).trim()!==''&&!isNaN(+String(x).replace(/,/g,'')))).length;
+    let t=d/n>.9?'date':m/n>.9?'num':'cat';
+    if(t==='num'&&/^(year|yr)$/i.test(c)&&v.every(x=>x>1900&&x<2100))t='year';
+    if(t==='num'&&/(^|_)id$|[a-z]I[dD]$/.test(c)&&u>.3*n)t='cat';
+    P[c]={c,t,u,id:t==='cat'&&u>40&&u>.3*n};
+  });
+  const R2=rows.map(r=>{const o={};cols.forEach(c=>{const t=P[c].t,x=r[c];o[c]=t==='num'?(toNum(x)||0):t==='date'?(isD(x)?iso(x):String(x).slice(0,10)):t==='year'?+x:String(x??'')});return o});
+  const nums=cols.filter(c=>P[c].t==='num'),cats=cols.filter(c=>P[c].t==='cat'),dateC=cols.find(c=>P[c].t==='date')||cols.find(c=>P[c].t==='year');
+  const f=(l,re,ex)=>l.find(c=>re.test(c)&&!(ex&&ex.test(c)));
+  const rev=[/sales.?amount|net.?sales|revenue/i,/sales/i,/total/i,/amount/i].map(re=>f(nums,re,/cost|disc|unit|price|tax|margin|profit|qty|quantity/i)).find(Boolean);
+  const R={rev,cost:f(nums,/cost/i,/unit/i),qty:f(nums,/qty|quantity|units/i,/stock/i),disc:f(nums,/disc.*(pct|percent|rate)|discount$/i)||f(cats,/discount/i),status:f(cats,/status/i),cust:f(cats,/customer.?id|cust.?id|client|account/i)};
+  const metric=cats.find(c=>/^(parameter|metric|indicator|measure|variable|series)$/i.test(c)),val=nums.find(c=>/^(value|val|amount)$/i.test(c));
+  const mode=metric&&val&&dateC?'long':rev&&dateC?'sales':'generic';
+  const sc=c=>/categ|product.?name|segment/i.test(c)?0:/region|country/i.test(c)?1:/channel|state|location|city|branch|store|rep|owner/i.test(c)?2:/id$/i.test(c)?4:3;
+  const dims=cats.filter(c=>!P[c].id&&P[c].u>1&&P[c].u<=60&&c!==R.status&&c!==metric&&!/^unit/i.test(c)).sort((a,b)=>sc(a)-sc(b));
+  const geo=dims.find(c=>/region|country|economy|area|state|location/i.test(c)),dt=dateC?R2.map(r=>Date.parse(r[dateC])):[];
+  const asof=dt.length&&P[dateC].t==='date'?Math.max(...dt):0,span=asof?(asof-Math.min(...dt))/864e5+1:0,yr=dateC&&P[dateC].t==='year';
+  const fine=!yr&&dateC&&uniq(R2.map(r=>r[dateC].slice(0,7))).length<=3;
+  const tk=!dateC?()=>'All':yr?r=>String(r[dateC]):fine?r=>r[dateC]:r=>r[dateC].slice(0,7);
+  DS={rows:R2,P,R,cols,dims,mode,dateC,metric,val,geo,asof,span,fine,tk,nums,name};FRESH=1;
+  if(mode!=='long'&&/Tamil Nadu|Karnataka|Maharashtra|Uttar Pradesh/.test(JSON.stringify(R2.slice(0,80))))CUR='₹';
+  $('cur').value=CUR;
+  const OLD={...S};KEEPV=keep?OLD.fv:'All';S={fd:dims.find(c=>/categ/i.test(c))||'',fv:'All'};
+  S.da=mode==='long'?(dims.find(c=>c!==geo)||dims[0]):(dims.find(c=>/categ/i.test(c))||dims[0]);
+  S.db=mode==='long'?(geo||dims[0]):(dims.find(c=>/region|country/i.test(c)&&c!==S.da)||dims.find(c=>c!==S.da)||S.da);
+  const mo=mode==='long'?uniq(R2.map(r=>r[metric])):mode==='generic'?nums.filter(c=>!P[c].id):[];
+  S.mp=mode==='long'?(mo.find(x=>/sales/i.test(x)&&!/share/i.test(x))||mo[0]):mo[0];
+  if(keep){if(OLD.fd===''||dims.includes(OLD.fd))S.fd=OLD.fd;['da','db'].forEach(k=>{if(dims.includes(OLD[k]))S[k]=OLD[k]});if(mo.includes(OLD.mp))S.mp=OLD.mp}
+  $('mp').innerHTML=mo.map(x=>`<option>${x}</option>`).join('');$('mp').classList.toggle('hidden',!mo.length);if(mo.length)$('mp').value=S.mp;
+  $('fd').innerHTML='<option value="">No filter</option>'+dims.map(c=>`<option>${c}</option>`).join('');$('fd').value=S.fd;
+  ['da','db'].forEach(i=>{$(i).innerHTML=dims.map(c=>`<option>${c}</option>`).join('');$(i).value=S[i]});
+  fillFv();
+  st(`${name}: ${R2.length.toLocaleString()} rows read as ${mode==='sales'?'sales transactions':mode==='long'?'a time series with several metrics':'a general table'}${joined.length?'. Joined sheets: '+joined.join(', '):''}`);
+  render();
+}
+function fillFv(){const v=S.fd?uniq(DS.rows.map(r=>r[S.fd])).sort():[];$('fv').innerHTML='<option value="All">All</option>'+v.map(x=>`<option>${x}</option>`).join('');$('fv').classList.toggle('hidden',!S.fd);S.fv=v.includes(KEEPV)?KEEPV:'All';KEEPV='All';$('fv').value=S.fv}
+
+/* ---------- sales transactions: KPIs depend on which columns exist ---------- */
+const topN=(a,n)=>{const t=a.slice(0,n),o=a.slice(n);return o.length?[...t,{n:'Other',s:sum(o,x=>x.s)}]:t};
+function segIns(a,nm,tot,ov){
+  const o=[];if(a.length<2||!tot)return o;
+  const t3=a.slice(0,3).reduce((s,x)=>s+x.s,0)/tot;
+  o.push(['g',`${a[0].n} leads ${nm} with ${pc(a[0].s/tot)} of sales${a.length>3?`; the top 3 hold ${pc(t3)}`:''}.`]);
+  if(a.length>3){const l=a[a.length-1];o.push(['a',`${l.n} adds just ${pc(l.s/tot)} of sales. Review coverage or pricing there.`])}
+  if(ov!=null){const wm=a.find(x=>x.m!=null&&x.s>=tot/a.length&&x.m<ov-.04);if(wm)o.push(['a',`${wm.n} sells well but earns ${pc(wm.m)} margin against ${pc(ov)} overall.`]);
+    const bm=[...a].filter(x=>x.m!=null&&x.s>0).sort((x,y)=>y.m-x.m)[0];if(bm&&bm.n!==a[0].n)o.push(['g',`${bm.n} has the best margin (${pc(bm.m)}). Feature it in promotions.`])}
+  const hr=[...a].filter(x=>x.rr!=null&&x.o>5).sort((x,y)=>y.rr-x.rr)[0];if(hr&&hr.rr>0)o.push(['a',`${hr.n} has the highest return rate (${pc(hr.rr)}). Check quality or delivery there.`]);
+  return o;
+}
+function sales(rows){
+  const D=DS,R=D.R,dc=D.dateC,v=r=>r[R.rev],cs=r=>R.cost?r[R.cost]:0,sc=R.status;
+  const isRet=r=>sc&&(/return/i.test(sc)?/^(y|yes|true|1)$/i.test(r[sc]):/return|refund|cancel/i.test(r[sc])),isOpen=r=>sc&&!/return/i.test(sc)&&/confirm|pending|process|open|placed|new|ship|transit/i.test(r[sc]);
+  const ok=rows.filter(r=>!isRet(r)),ret=rows.filter(isRet),open=rows.filter(isOpen),net=sum(ok,v),gp=net-sum(ok,cs),mg=R.cost&&net?gp/net:null;
+  const age=r=>(D.asof-Date.parse(r[dc]))/864e5,h=D.span>=180?90:D.span>=60?Math.floor(D.span/2):0;
+  const cu=ok.filter(r=>age(r)<h),pr=ok.filter(r=>age(r)>=h&&age(r)<2*h),g=h&&sum(pr,v)?sum(cu,v)/sum(pr,v)-1:null;
+  const m=[...grp(ok,D.tk)].sort((a,b)=>a[0]<b[0]?-1:1),pk=[...m].sort((a,b)=>sum(b[1],v)-sum(a[1],v))[0];
+  const agg=c=>[...grp(rows,c)].map(([n,a])=>{const o=a.filter(r=>!isRet(r)),s=sum(o,v);return{n,s,m:R.cost&&s?(s-sum(o,cs))/s:null,o:o.length,rr:sc?a.filter(isRet).length/a.length:null}}).sort((a,b)=>b.s-a.s);
+  const A=agg(S.da),B=agg(S.db),custs=R.cust?uniq(ok.map(r=>r[R.cust])).length:0,units=R.qty?sum(ok,r=>r[R.qty]):0,numD=R.disc&&D.P[R.disc].t==='num';
+  const dv=R.disc?(numD?sum(ok,r=>r[R.disc])/(ok.length||1):ok.filter(r=>/^(y|yes|true)$/i.test(r[R.disc])).length/(ok.length||1)):null;
+  const K=[['Net sales',fmt(net),up(g,'vs prior '+h+' days')],['Total orders',rows.length.toLocaleString(),'all orders placed'],['Confirmed orders',ok.length.toLocaleString(),pc(ok.length/rows.length)+' kept · '+fmt(net)],sc&&['Returned orders',ret.length.toLocaleString(),pc(ret.length/rows.length)+' of orders · '+fmt(sum(ret,v))+' excluded'],R.cost&&['Gross profit',fmt(gp),'Margin '+pc(mg)],['Average order value',fmt(net/(ok.length||1))],
+    open.length&&['Awaiting delivery',fmt(sum(open,v)),open.length+' confirmed, not yet delivered'],
+    units&&['Units sold',Math.round(units).toLocaleString()],custs&&['Customers',custs,fmt(net/custs)+' each'],dv!=null&&[numD?'Average discount':'Orders discounted',pc(dv)],
+    A.length>3&&net&&['Top 3 share',pc(A.slice(0,3).reduce((s,x)=>s+x.s,0)/net),'of '+S.da],pk&&['Peak period',lab(pk[0]),fmt(sum(pk[1],v))]].filter(Boolean);
+  const ins=[];if(sc)ins.push(['g',`${rows.length} orders placed: ${ok.length} confirmed and ${ret.length} returned.`]);
+  if(g!=null)ins.push([g>=0?'g':'a',`Net sales are ${g>=0?'up':'down'} ${pc(Math.abs(g))} over the last ${h} days versus the ${h} before.`]);
+  ins.push(...segIns(A,S.da,net,mg),...(S.db!==S.da?segIns(B,S.db,net,mg).slice(0,3):[]));
+  if(open.length&&net)ins.push(['a',`${fmt(sum(open,v))} (${pc(sum(open,v)/net)} of net sales) is confirmed but not delivered. Faster fulfilment turns it into cash.`]);
+  if(ret.length)ins.push(['a',`Returns take out ${fmt(sum(ret,v))} of sales (${pc(ret.length/rows.length)} of orders).`]);
+  if(m.length>3&&pk){const av=net/m.length;ins.push(['g',`${lab(pk[0])} is the strongest period, ${pc(sum(pk[1],v)/av-1)} above average. Plan stock and campaigns around it.`])}
+  const dsc=numD?ok.filter(r=>r[R.disc]>0):[],nd=numD?ok.filter(r=>!(r[R.disc]>0)):[];
+  if(R.cost&&dsc.length>20&&nd.length>20)ins.push(['a',`Discounted orders earn ${pc(1-sum(dsc,cs)/(sum(dsc,v)||1))} margin against ${pc(1-sum(nd,cs)/(sum(nd,v)||1))} at full price. Check the extra volume justifies it.`]);
+  const sl=topN(A,5);
+  return{hero:K.slice(0,4),mini:K.slice(4),tt:'Net sales'+(R.cost?' and gross profit':'')+' over time',ts:(D.fine?'Daily':'Monthly')+(sc?', returned orders excluded':''),labels:m.map(x=>lab(x[0])),
+    ds:[{type:'bar',label:'Net sales',data:m.map(x=>sum(x[1],v)),backgroundColor:css('--c1'),borderRadius:4},...(R.cost?[{type:'line',label:'Gross profit',data:m.map(x=>sum(x[1],r=>v(r)-cs(r))),borderColor:css('--c3'),backgroundColor:css('--c3'),tension:.35,borderWidth:2.5,pointRadius:3}]:[])],
+    mixT:sc?'Order status':'Top '+S.db,mix:(sc?[...grp(rows,sc)].map(([n,a])=>({n:/return/i.test(sc)?(/^(y|yes|true|1)$/i.test(n)?'Returned':'Confirmed'):n,v:a.length+' orders · '+fmt(sum(a,v)),w:100*a.length/rows.length})).sort((a,b)=>b.w-a.w):B.slice(0,6).map(x=>({n:x.n,v:fmt(x.s),w:100*x.s/(B[0].s||1)}))),
+    don:{t:'Sales by '+S.da,l:sl.map(x=>x.n),d:sl.map(x=>x.s)},bar:{t:'Sales by '+S.db,l:B.slice(0,8).map(x=>x.n),d:B.slice(0,8).map(x=>x.s)},
+    tbl:{h:[S.da,'Net sales','Share',...(R.cost?['Margin']:[]),...(sc?['Returns']:[])],r:A.slice(0,10).map(x=>[x.n,fmt(x.s),pc(x.s/net),...(R.cost?[pc(x.m)]:[]),...(sc?[pc(x.rr)]:[])])},ins};
+}
+
+/* ---------- time series (several metrics) and general tables ---------- */
+function series(rows){
+  const D=DS,{dateC,geo,metric,val,tk}=D,m=S.mp,vc=metric?val:m,base=metric?rows.filter(r=>r[metric]===m):rows;
+  const uc=D.cols.find(c=>/^unit/i.test(c)),u=metric&&uc&&base[0]?String(base[0][uc]):'',pct=/percent/i.test(u),ex=!pct;
+  U={pre:metric?'':CUR,suf:pct?'%':/gwh/i.test(u)?' GWh':''};
+  const WR=/^(world|global)$/i,AG=/^(world|global|total|eu ?27|europe)$/i,tot=geo&&S.fd!==geo&&base.some(r=>WR.test(r[geo]))?base.filter(r=>WR.test(r[geo])):base;
+  const by=grp(tot,tk),ks=[...by.keys()].sort(),tv=ks.map(k=>sum(by.get(k),r=>r[vc])),L=ks.length-1,last=tv[L],prev=tv[L-1],lk=ks[L],pk=ks[L-1];
+  const fi=tv.findIndex(x=>x>0),first=tv[fi],yr=dateC&&D.P[dateC].t==='year',cagr=yr&&fi>=0&&L>fi&&last>0?Math.pow(last/first,1/(L-fi))-1:null,g=prev?last/prev-1:null,mx=Math.max(...tv);
+  const dagg=c=>{const src=c===geo?base.filter(r=>!AG.test(r[c])):tot,pm=new Map([...grp(src.filter(r=>tk(r)===pk),c)].map(([n,a])=>[n,sum(a,r=>r[vc])]));
+    return[...grp(src.filter(r=>tk(r)===lk),c)].map(([n,a])=>{const s=sum(a,r=>r[vc]),p=pm.get(n);return{n,s,p,gr:p?s/p-1:null}}).sort((a,b)=>b.s-a.s)};
+  const A=S.da?dagg(S.da):[],B=S.db?dagg(S.db):[],G=geo?dagg(geo):A,tG=sum(G,x=>x.s)||1,gro=G.filter(x=>x.gr!=null);
+  const fast=[...gro].filter(x=>x.s>=.01*tG||pct).sort((a,b)=>b.gr-a.gr)[0],lead=G[0],tA=sum(A,x=>x.s)||1,pA=sum(A,x=>x.p||0);
+  const ch=prev==null?'':pct?`${last>=prev?'▲':'▼'} ${Math.abs(last-prev).toFixed(1)} pts vs ${pk}`:up(g,'vs '+pk);
+  const K=[[dateC?'Latest ('+lk+')':'Total',fmt(last),ch],cagr!=null&&['Compound growth (CAGR)',pc(cagr),'per year since '+ks[fi]],dateC&&L>0&&['Peak period',lab(ks[tv.indexOf(mx)]),fmt(mx)],
+    G.length>1&&lead&&[(pct?'Highest ':'Largest ')+(geo||S.da||'segment'),lead.n,ex?pc(lead.s/tG)+' of total':fmt(lead.s)],fi>=0&&L>fi&&['First period ('+ks[fi]+')',fmt(first),(last/first).toFixed(1)+'× since then'],
+    L>0&&['Periods covered',ks.length,ks[0]+' to '+lk],!metric&&['Rows',base.length.toLocaleString()],!metric&&['Average per row',fmt(sum(base,r=>r[vc])/(base.length||1))],
+    G.length>1&&[(geo?geo+'s':'Segments')+' tracked',G.length],gro.length>1&&['Growing in latest period',gro.filter(x=>x.gr>0).length+' of '+gro.length],fast&&['Fastest grower',fast.n,'+'+pc(fast.gr)],
+    A.length>1&&S.da!==geo&&['Top '+S.da,A[0].n,ex?pc(A[0].s/tA)+' of total':fmt(A[0].s)]].filter(Boolean);
+  const ins=[],g0=tv[L-2]?tv[L-1]/tv[L-2]-1:null,nm=metric?m:'Total';
+  if(prev!=null)ins.push([last>=prev?'g':'a',`${nm} ${pct?'stood at':'reached'} ${fmt(last)} in ${lk}, ${last>=prev?'up':'down'} ${pct?Math.abs(last-prev).toFixed(1)+' points':pc(Math.abs(g))} on ${pk}.`]);
+  if(ex&&g!=null&&g0!=null&&Math.abs(g-g0)>.03)ins.push(['a',`Growth ${g<g0?'slowed':'picked up'} from ${pc(g0)} in ${pk} to ${pc(g)} in ${lk}.`]);
+  if(cagr!=null)ins.push(['g',`${pc(cagr)} compound annual growth since ${ks[fi]}: now ${(last/first).toFixed(1)}× the starting level.`]);
+  if(ex&&G.length>2)ins.push(['g',`${G[0].n} leads with ${pc(G[0].s/tG)} of the total across ${geo?geo+'s':'segments'}; the top 3 hold ${pc(sum(G.slice(0,3),x=>x.s)/tG)}.`]);
+  if(pct&&G.length>2)ins.push(['g',`${G[0].n} has the highest value (${fmt(G[0].s)}); ${G[G.length-1].n} has the lowest (${fmt(G[G.length-1].s)}).`]);
+  if(fast&&fast.gr>0)ins.push(['g',`${fast.n} grew fastest (+${pc(fast.gr)}) in ${lk}. Study what is driving it.`]);
+  const dn=gro.filter(x=>x.gr<0);if(dn.length&&gro.length>3)ins.push(['a',`${dn.length} of ${gro.length} ${geo?geo+'s':'segments'} shrank in ${lk}${dn.length<4?': '+dn.map(x=>x.n).join(', '):''}.`]);
+  if(ex&&A.length>1&&S.da!==geo&&pA)ins.push(['g',`${A[0].n} is ${pc(A[0].s/tA)} of the ${S.da} mix, ${A[0].s/tA>=(A[0].p||0)/pA?'up':'down'} from ${pc((A[0].p||0)/pA)} in ${pk}.`]);
+  const stack=ex&&S.da&&S.da!==geo&&D.dims.includes(S.da),pcol=['--c1','--c2','--c3','--c4','--c5'].map(css),sl=topN(A,5),mxg=Math.max(...gro.map(x=>Math.abs(x.gr)),.01);
+  return{hero:K.slice(0,4),mini:K.slice(4),tt:nm+' over time',ts:(yr?'By year':D.fine?'By day':'By month')+(metric&&u?' · unit: '+u:''),labels:ks.map(lab),stack,
+    ds:stack?[...grp(tot,S.da)].map(([n,a],i)=>{const q=grp(a,tk);return{type:'bar',label:n,data:ks.map(k=>sum(q.get(k)||[],r=>r[vc])),backgroundColor:pcol[i%5],borderRadius:2}}):[{type:pct||ks.length>24?'line':'bar',label:nm,data:tv,backgroundColor:css('--c1'),borderColor:css('--c1'),borderRadius:4,tension:.3,borderWidth:2.5,pointRadius:ks.length>24?0:3}],
+    mixT:'Fastest growing '+(geo?geo+'s':'segments')+(lk?' in '+lk:''),mix:gro.filter(x=>x.s>=.01*tG||pct).sort((a,b)=>b.gr-a.gr).slice(0,6).map(x=>({n:x.n,v:(x.gr>=0?'+':'')+pc(x.gr),w:Math.max(3,100*Math.abs(x.gr)/mxg)})),
+    don:{t:(pct?'Value':'Share')+' by '+S.da+(lk?', '+lk:''),l:sl.map(x=>x.n),d:sl.map(x=>x.s)},bar:{t:S.db+', '+lk,l:B.slice(0,8).map(x=>x.n),d:B.slice(0,8).map(x=>x.s)},
+    tbl:{h:[S.da,'Latest',...(ex?['Share']:[]),'Change'],r:A.slice(0,10).map(x=>[x.n,fmt(x.s),...(ex?[pc(x.s/tA)]:[]),x.gr==null?'—':pc(x.gr)])},ins};
+}
+
+/* ---------- painting ---------- */
+const mk=(id,cfg)=>{charts[id]?.destroy();charts[id]=new Chart($(id),cfg)};
+const base=(o={})=>({responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{boxWidth:8,usePointStyle:true}}},...o});
+const HG=['#1e40af,#3b6cf0','#0f766e,#14a38f','#5b3bd1,#8a5cf6','#9a3412,#e0802a'];
+const raf=f=>(window.requestAnimationFrame||setTimeout)(f),RM=()=>matchMedia('(prefers-reduced-motion:reduce)').matches;
+function count(el){if(!el||RM())return;const t=el.textContent;if(!/^[^\dA-Za-z]*[\d,.]+[A-Za-z% ]*$/.test(t))return;const m=t.match(/\d[\d,]*\.?\d*/),s=m[0],n=parseFloat(s.replace(/,/g,''));if(!isFinite(n)||/^(19|20)\d\d$/.test(s))return;const d=(s.split('.')[1]||'').length,a=t.slice(0,m.index),b=t.slice(m.index+s.length),t0=performance.now();(function f(){const p=Math.min(1,(performance.now()-t0)/800),v=n*(1-Math.pow(1-p,3));el.textContent=a+(s.includes(',')?v.toLocaleString('en',{minimumFractionDigits:d,maximumFractionDigits:d}):v.toFixed(d))+b;if(p<1)raf(f)})()}
+function decorate(){
+  [...$('hero').children,...$('mini').children].forEach((e,i)=>{e.classList.add('anim');e.style.setProperty('--i',i);count(e.children[1])});
+  [...$('ins').children].forEach((e,i)=>{e.classList.add('anim');e.style.setProperty('--i',i)});
+  $('mix').querySelectorAll('.h-2 .h-2').forEach(e=>{const w=e.style.width;e.classList.add('bar');e.style.width='0%';raf(()=>raf(()=>{e.style.width=w}))});
+  if(FRESH){FRESH=0;document.querySelectorAll('main section:not(#hero):not(#mini) > .card').forEach((e,i)=>{e.classList.remove('anim');void e.offsetWidth;e.style.setProperty('--i',i+5);e.classList.add('anim')})}
+}
+function render(){Chart.defaults.animation=RM()?false:{duration:900,easing:'easeOutQuart'};render0();decorate()}
+function render0(){
+  if(!DS)return;
+  const rows=S.fd&&S.fv!=='All'?DS.rows.filter(r=>r[S.fd]===S.fv):DS.rows;
+  if(!rows.length)return st('No rows match that filter.',1);
+  Chart.defaults.color=css('--mute');Chart.defaults.borderColor=css('--line');Chart.defaults.font.family="'Plus Jakarta Sans',system-ui,sans-serif";
+  U={pre:CUR,suf:''};
+  let V;try{V=DS.mode==='sales'?sales(rows):series(rows)}catch(e){return st('Could not analyse this view: '+e.message,1)}
+  $('hero').innerHTML=V.hero.map((h,i)=>`<div class="hero" style="background:linear-gradient(135deg,${HG[i%4]})"><div class="text-[13px] opacity-90">${h[0]}</div><div class="text-2xl xl:text-3xl font-extrabold mt-1 break-words">${h[1]}</div>${h[2]?`<span class="chip">${h[2]}</span>`:''}</div>`).join('');
+  $('mini').innerHTML=V.mini.map(m=>`<div class="card !p-3"><div class="text-[11px] mute">${m[0]}</div><div class="text-lg font-bold mt-0.5 break-words">${m[1]}</div>${m[2]?`<div class="text-[11px] mute">${m[2]}</div>`:''}</div>`).join('');
+  $('c1t').textContent=V.tt;$('c1s').textContent=V.ts;
+  mk('c1',{type:'bar',data:{labels:V.labels,datasets:V.ds},options:base({scales:{x:{stacked:!!V.stack,grid:{display:false}},y:{stacked:!!V.stack,ticks:{callback:v=>fmt(v)}}}})});
+  $('mixt').textContent=V.mixT;
+  $('mix').innerHTML=V.mix.length?V.mix.map(b=>`<div><div class="flex justify-between text-xs mb-1 gap-2"><span class="font-semibold">${b.n}</span><span class="mute">${b.v}</span></div><div class="h-2 rounded-full" style="background:var(--line)"><div class="h-2 rounded-full" style="width:${b.w}%;background:var(--c4)"></div></div></div>`).join(''):'<div class="text-xs mute">Not enough data for this view.</div>';
+  $('d1t').textContent=V.don.t;$('d2t').textContent=V.bar.t;
+  mk('c3',{type:'doughnut',data:{labels:V.don.l,datasets:[{data:V.don.d,backgroundColor:['--c1','--c2','--c3','--c4','--c5','--line'].map(css),borderColor:css('--card'),borderWidth:2}]},options:base({cutout:'60%',plugins:{legend:{position:'bottom',labels:{boxWidth:8,usePointStyle:true}},tooltip:{callbacks:{label:c=>` ${c.label}: ${fmt(c.parsed)}`}}}})});
+  mk('c4',{type:'bar',data:{labels:V.bar.l,datasets:[{data:V.bar.d,backgroundColor:css('--c3'),borderRadius:4}]},options:base({indexAxis:'y',plugins:{legend:{display:false}},scales:{x:{ticks:{callback:v=>fmt(v)}},y:{grid:{display:false}}}})});
+  $('tbl').innerHTML=`<table><tr>${V.tbl.h.map(x=>`<th>${x}</th>`).join('')}</tr>${V.tbl.r.map(r=>`<tr>${r.map(x=>`<td>${x}</td>`).join('')}</tr>`).join('')}</table>`;
+  $('ins').innerHTML=V.ins.map(i=>`<li class="flex gap-2"><span style="color:var(${i[0]==='g'?'--ok':'--warn'})" aria-hidden="true">●</span><span>${i[1]}</span></li>`).join('')||'<li class="mute">Load more data to generate insights.</li>';
+}
+
+/* ---------- inputs ---------- */
+const sheetsOf=wb=>wb.SheetNames.map(n=>({n,rows:XLSX.utils.sheet_to_json(wb.Sheets[n],{defval:''})}));
+$('file').onchange=async e=>{const f=e.target.files[0];if(!f)return;try{ingest(sheetsOf(XLSX.read(await f.arrayBuffer(),{type:'array',cellDates:true,raw:true})),f.name)}catch(x){st('Could not read that file: '+x.message,1)}};
+const SNAP={id:'1_K_Hx_blHkQMtUpQGVIJ0vn6wac9ZLaEy3WW6S9dioo',on:'28 Oct 2026',csv:`Transaction_ID,Date,Customer_ID,Gender,Age,Location,Product_Category,Product_Name,Quantity,Unit_Price,Total_Amount,Payment_Method,Discount_Applied,Return_Status
+TXN_1001,2026-10-01,CUST_8043,Female,28,New York,Electronics,Wireless Headphones,1,89.99,89.99,Credit Card,No,No
+TXN_1002,2026-10-01,CUST_1125,Male,42,Los Angeles,Home & Kitchen,Air Fryer XL,1,129.99,116.99,PayPal,Yes,No
+TXN_1003,2026-10-02,CUST_5541,Female,31,Chicago,Clothing,Premium Yoga Pants,2,45,90,Credit Card,No,No
+TXN_1004,2026-10-02,CUST_3329,Male,22,Houston,Electronics,Mechanical Keyboard,1,75.5,75.5,Debit Card,No,Yes
+TXN_1005,2026-10-03,CUST_9012,Female,54,Phoenix,Beauty,Anti-Aging Serum,3,35,105,Credit Card,No,No
+TXN_1006,2026-10-03,CUST_4478,Male,35,Philadelphia,Sports,Adjustable Dumbbells,1,249.99,224.99,PayPal,Yes,No
+TXN_1007,2026-10-04,CUST_2210,Female,19,San Antonio,Clothing,Oversized Hoodie,1,55,55,Apple Pay,No,No
+TXN_1008,2026-10-04,CUST_7743,Male,61,San Diego,Home & Kitchen,Espresso Machine,1,599,599,Credit Card,No,No
+TXN_1009,2026-10-05,CUST_8831,Female,25,Dallas,Beauty,Matte Lipstick Set,2,22,39.6,Debit Card,Yes,No
+TXN_1010,2026-10-05,CUST_1099,Male,29,San Jose,Electronics,Ergonomic Gaming Mouse,1,65,65,Apple Pay,No,No
+TXN_1011,2026-10-06,CUST_6654,Female,47,Austin,Home & Kitchen,Memory Foam Pillow,2,39.99,79.98,Credit Card,No,No
+TXN_1012,2026-10-06,CUST_3421,Male,38,Jacksonville,Sports,Waterproof Running Shoes,1,120,108,PayPal,Yes,No
+TXN_1013,2026-10-07,CUST_5512,Female,33,Fort Worth,Clothing,Floral Summer Dress,1,68,68,Credit Card,No,Yes
+TXN_1014,2026-10-07,CUST_9901,Male,26,Columbus,Electronics,1080p Web Camera,2,45,90,Debit Card,No,No
+TXN_1015,2026-10-08,CUST_2145,Female,50,Charlotte,Beauty,Hydrating Moisturizer,1,40,36,Apple Pay,Yes,No`};
+async function sync(manual){
+  if(LIVE.busy)return;const u=$('url').value,m=u.match(/\/d\/([\w-]+)/);if(!m)return st('Paste a Google Sheets link first.',1);LIVE.busy=true;LIVE.left=60;LIVE.id=m[1];LIVE.gid=(u.match(/gid=(\d+)/)||[])[1]||0;$('rfi').classList.add('spin');
+  try{const r=await fetch(`https://docs.google.com/spreadsheets/d/${m[1]}/gviz/tq?tqx=out:csv&gid=${LIVE.gid}&_=${Date.now()}`,{cache:'no-store'});if(!r.ok)throw 0;const t=await r.text();LIVE.err='';LIVE.at=new Date();if(manual||t!==LIVE.sig){LIVE.sig=t;ingest(sheetsOf(XLSX.read(t,{type:'string',raw:true})),'Google Sheet (live)',true)}}
+  catch(x){const why='Live sync is blocked on this hosted page by the host, not by your sharing settings. It works when this file runs on your own site.';
+    LIVE.err='blocked';LIVE.at=new Date();if(m[1]===SNAP.id){if(manual||LIVE.sig!=='snap'){LIVE.sig='snap';ingest(sheetsOf(XLSX.read(SNAP.csv,{type:'string',raw:true})),'Snapshot of your sheet from '+SNAP.on,true);st($('st').textContent+'. '+why,1)}}else st(why,1)}finally{LIVE.busy=false;$('rfi').classList.remove('spin');paintSync()}
+};
+$('conn').onclick=sync;$('rf').onclick=()=>LIVE.id?sync(true):st('Connect a Google Sheet first. Refresh then re-reads it on demand.',1);
+function paintSync(){const e=$('sync');if(!LIVE.id){e.innerHTML='';return}e.innerHTML=`<span class="dot" style="background:var(${LIVE.err?'--warn':'--ok'})"></span>${LIVE.err?'Showing snapshot (live fetch blocked on this page)':'Live sheet connected'}${LIVE.at?' · checked '+LIVE.at.toLocaleTimeString():''}${$('auto').checked?' · next check in '+LIVE.left+'s':' · auto-refresh off'}`}
+setInterval(()=>{if(!LIVE.id||LIVE.busy)return;if($('auto').checked&&!document.hidden&&--LIVE.left<=0)return sync();paintSync()},1000);
+$('auto').onchange=()=>{LIVE.left=60;paintSync()};
+$('fd').onchange=e=>{S.fd=e.target.value;fillFv();render()};$('fv').onchange=e=>{S.fv=e.target.value;render()};
+['da','db','mp'].forEach(i=>$(i).onchange=e=>{S[i]=e.target.value;render()});
+$('cur').onchange=e=>{CUR=e.target.value;render()};
+matchMedia('(prefers-color-scheme:dark)').addEventListener('change',render);
+
+/* ---------- sample data shown on first load ---------- */
+function mock(){
+  let s=7;const r=()=>(s=(s*16807)%2147483647)/2147483647,pk=a=>a[Math.floor(r()*a.length)];
+  const PR=[['Seeds','Paddy Seeds',740,420],['Seeds','Maize Seeds',620,350],['Pesticides','Insecticide',1250,790],['Pesticides','Fungicide',980,610],['Equipment','Drip Kit',4200,2950],['Equipment','Sprayer',1650,980],['Fertilizers','Growth Booster',560,310],['Fertilizers','Soluble Fertilizer',1350,860]];
+  return Array.from({length:900},()=>{const p=pk(PR),q=1+Math.floor(r()*20),d=pk([0,0,.05,.1]),x=r();
+    return{OrderDate:iso(new Date(2025,0,1+Math.floor(r()*660))),CustomerID:'C'+(1+Math.floor(r()*20)),Category:p[0],ProductName:p[1],Quantity:q,DiscountPct:d,SalesAmount:Math.round(p[2]*q*(1-d)),CostAmount:p[3]*q,OrderStatus:x<.72?'Delivered':x<.88?'Confirmed':'Returned',SalesChannel:pk(['Web','Phone','Distributor']),Region:pk(['North','South','East','West','Central'])}});
+}
+ingest([{n:'Sales',rows:mock()}],'Sample data');
+</script>
+</body>
+</html>
